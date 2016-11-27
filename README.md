@@ -1,0 +1,2 @@
+# scopa
+Scopa card game
