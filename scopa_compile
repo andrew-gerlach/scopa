@@ -1,0 +1,6 @@
+rm card_hand.o card_pot.o card_deck.o scopa_main.o card_hand.mod card_pot.mod card_deck.mod scopa_main.mod scopa.exe
+gfortran -c card_hand.f90
+gfortran -c card_pot.f90
+gfortran -c card_deck.f90
+gfortran -c scopa_main.f90
+gfortran scopa.f90 scopa_main.o card_deck.o card_pot.o card_hand.o -o scopa.exe
