@@ -22,12 +22,12 @@ MODULE card_pot
     ! pot possibilities to be taken, first column is value, all others are
     ! indices within the pot
     integer,allocatable :: take_vals(:,:)
-    ! counter
-    integer :: c=0
-    ! index
-    integer :: j,k=0
-    ! temporary storage of card indices
-    integer :: tmp(8)
+    ! counter for pot possibilities to be taken
+    integer :: c
+    ! index for cards included in pot
+    integer :: k
+    ! temporary storage or card indices
+    integer :: tmp_vals(8)
 
     CONTAINS
       procedure,pass :: init => init_pot
@@ -57,7 +57,6 @@ MODULE card_pot
 !-------------------------------------------------------------------------------
     SUBROUTINE check_pot(me)
       class(pot_type),intent(inout) :: me
-      integer,allocatable :: tmp_take_vals(:,:)
       integer :: i,s
 
       ! assign a temporary pot to debug with
@@ -66,12 +65,15 @@ MODULE card_pot
       allocate(me%p_val(me%n))
       me%p_val=(/8,1,5,4,10/)
        
-    
+      me%c=0
+      me%k=1
+      me%tmp_vals=0
+      ! cycle through pot to check for combos
       do i=1,me%n
-        me%j=i
         s=0
-        call sum_me(me,s)
+        call sum_me(me,i,s)
       enddo
+
 print*, "Possible take combinations are:"
       do i=1,me%c
         print*, me%take_vals(i,:)
@@ -82,61 +84,57 @@ print*, "Possible take combinations are:"
 !-------------------------------------------------------------------------------
 ! 
 !-------------------------------------------------------------------------------
-    RECURSIVE SUBROUTINE sum_me(me,s)
+    RECURSIVE SUBROUTINE sum_me(me,i,s)
       class(pot_type),intent(inout) :: me
-      integer,intent(inout) :: s
+      integer, intent(in) :: i
+      integer, intent(inout) :: s
+      integer :: j
       integer,allocatable :: tmp_take_vals(:,:)
-      integer :: i
-
-      s=s+me%p_val(me%j)
-      ! check to see if sum is a valid take
+      
+      ! add new card to sum
+      s=s+me%p_val(i)
+      ! check to see if sum is takeable (10 or less)
       if(s<=10) then
-        ! increment combination counter
+        ! increment counter of possible takes
         me%c=me%c+1
-        ! temporarily allocate array to store me%take_vals while actual
-        ! me%take_vals array is expanded to accommodate new combination
-        allocate(tmp_take_vals(me%c,10))
+        ! add card position in pot
+        me%tmp_vals(me%k)=i
+        ! copy previous combinations and reallocate take_vals for new combo
+        allocate(tmp_take_vals(me%c-1,10))
         tmp_take_vals=0
         if(me%c>1) then
-          tmp_take_vals(1:me%c-1,:)=me%take_vals(1:me%c-1,:)
+          tmp_take_vals=me%take_vals
           deallocate(me%take_vals)
         endif
         allocate(me%take_vals(me%c,10))
-        me%take_vals=tmp_take_vals
-        ! assign new data
+        me%take_vals=0
+        me%take_vals(1:me%c-1,:)=tmp_take_vals(1:me%c-1,:)
+        ! add new combo to take_vals
         me%take_vals(me%c,1)=s
-        if(s==me%p_val(me%j)) then
-          ! single card only
-          me%tmp=0
-          me%k=1
-        else
-          ! multiple cards expands on previous entry
+        me%take_vals(me%c,2:9)=me%tmp_vals
+        me%take_vals(me%c,10)=me%k
+        ! iterate further is sum is less than 10 and not on last card
+        if(s<10.and.i<me%n) then
+          ! increment number of cards in combo
           me%k=me%k+1
-        endif
-        me%tmp(me%k)=me%j
-        me%take_vals(me%c,2:9)=me%tmp
-
-        ! debug print
-        print*, "Possible take combinations are:"
-        do i=1,me%c
-          print*, me%take_vals(i,:)
-        enddo
-
-        ! iterate on if the sum is less than 10 and we're not on the last card
-        if(s<10.and.me%j<me%n) then
-          me%j=me%j+1
-          call sum_me(me,s)
-        endif
-      else
-        if(me%j<me%n) then
-          s=s-me%p_val(me%j)
-          me%j=me%j+1
-          me%tmp(me%k)=0
+          do j=i+1,me%n
+            call sum_me(me,j,s)
+          enddo
+          ! de-increment number of cards in combo
           me%k=me%k-1
-          call sum_me(me,s)
+          ! remove value from sum for next iteration
+          s=s-me%p_val(i)
+        else
+          ! remove value from sum for next iteration
+          s=s-me%p_val(i)
         endif
+        ! remove card position to move on
+        me%tmp_vals(me%k)=0
+      else
+        ! remove value from sum for next iteration
+        s=s-me%p_val(i)
       endif
-        
+
     ENDSUBROUTINE sum_me
 !-------------------------------------------------------------------------------
 
