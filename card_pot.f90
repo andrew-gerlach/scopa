@@ -25,12 +25,14 @@ MODULE card_pot
     ! counter
     integer :: c=0
     ! index
-    integer :: j=0
+    integer :: j,k=0
+    ! temporary storage of card indices
+    integer :: tmp(8)
 
     CONTAINS
       procedure,pass :: init => init_pot
       procedure,pass :: check => check_pot
-      procedure,pass :: sum1
+      procedure,pass :: sum_me
   endtype pot_type  
 
   CONTAINS
@@ -55,19 +57,20 @@ MODULE card_pot
 !-------------------------------------------------------------------------------
     SUBROUTINE check_pot(me)
       class(pot_type),intent(inout) :: me
-      integer :: tmp,tmp_sum,i,j,combos
-      integer :: s
+      integer,allocatable :: tmp_take_vals(:,:)
+      integer :: i,s
 
-      allocate(me%take_vals(me%n,10))
-      me%take_vals=0
-      me%c=me%n
+      ! assign a temporary pot to debug with
+      deallocate(me%p_val)
+      me%n=5
+      allocate(me%p_val(me%n))
+      me%p_val=(/8,1,5,4,10/)
+       
+    
       do i=1,me%n
-        me%take_vals(i,1)=me%p_val(i)
-        me%take_vals(i,2)=i
-      enddo
-      do i=1,me%n-1
-        me%j=i+1
-        call sum1(me,me%p_val(i))
+        me%j=i
+        s=0
+        call sum_me(me,s)
       enddo
 print*, "Possible take combinations are:"
       do i=1,me%c
@@ -79,50 +82,62 @@ print*, "Possible take combinations are:"
 !-------------------------------------------------------------------------------
 ! 
 !-------------------------------------------------------------------------------
-    RECURSIVE SUBROUTINE sum1(me,s)
+    RECURSIVE SUBROUTINE sum_me(me,s)
       class(pot_type),intent(inout) :: me
       integer,intent(inout) :: s
       integer,allocatable :: tmp_take_vals(:,:)
       integer :: i
 
-!print*, "sum1, enter"
-!print*, "sum1, input s=",s
       s=s+me%p_val(me%j)
-!print*, "sum1, new s=",s
-      if(s<10) then
-!print*, "sum1, s<10, c=",me%c," j=",me%j
+      ! check to see if sum is a valid take
+      if(s<=10) then
+        ! increment combination counter
         me%c=me%c+1
+        ! temporarily allocate array to store me%take_vals while actual
+        ! me%take_vals array is expanded to accommodate new combination
         allocate(tmp_take_vals(me%c,10))
-        tmp_take_vals(1:me%c-1,:)=me%take_vals(1:me%c-1,:)
-        tmp_take_vals(me%c,:)=0
-print*, "Possible take combinations are:"
-do i=1,me%c
-  print*, tmp_take_vals(i,:)
-enddo
-        deallocate(me%take_vals)
+        tmp_take_vals=0
+        if(me%c>1) then
+          tmp_take_vals(1:me%c-1,:)=me%take_vals(1:me%c-1,:)
+          deallocate(me%take_vals)
+        endif
         allocate(me%take_vals(me%c,10))
         me%take_vals=tmp_take_vals
-print*, "Possible take combinations are:"
-do i=1,me%c
-  print*, me%take_vals(i,:)
-enddo
-        me%j=me%j+1
-!print*, "sum1, s<10, new c=",me%c," j=",me%j
-        call sum1(me,s)
+        ! assign new data
+        me%take_vals(me%c,1)=s
+        if(s==me%p_val(me%j)) then
+          ! single card only
+          me%tmp=0
+          me%k=1
+        else
+          ! multiple cards expands on previous entry
+          me%k=me%k+1
+        endif
+        me%tmp(me%k)=me%j
+        me%take_vals(me%c,2:9)=me%tmp
+
+        ! debug print
+        print*, "Possible take combinations are:"
+        do i=1,me%c
+          print*, me%take_vals(i,:)
+        enddo
+
+        ! iterate on if the sum is less than 10 and we're not on the last card
+        if(s<10.and.me%j<me%n) then
+          me%j=me%j+1
+          call sum_me(me,s)
+        endif
       else
-!print*, "sum1, s>10"
         if(me%j<me%n) then
           s=s-me%p_val(me%j)
-!print*, "sum1, j<n, new s=",s," j=",me%j
           me%j=me%j+1
-          call sum1(me,s)
-        else
-!print*, "sum1, j!>n, so we're done"
+          me%tmp(me%k)=0
+          me%k=me%k-1
+          call sum_me(me,s)
         endif
       endif
-!print*, "sum1, exit"
         
-    ENDSUBROUTINE sum1
+    ENDSUBROUTINE sum_me
 !-------------------------------------------------------------------------------
 
 ENDMODULE card_pot
