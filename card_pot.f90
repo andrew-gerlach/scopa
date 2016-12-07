@@ -4,6 +4,7 @@
 !   11/8/2016
 !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++!
 MODULE card_pot
+   USE card_hand
 
   implicit none
   private
@@ -19,8 +20,8 @@ MODULE card_pot
     integer,allocatable :: p_id(:)
     ! pot values
     integer,allocatable :: p_val(:)
-    ! pot possibilities to be taken, first column is value, all others are
-    ! indices within the pot
+    ! pot possibilities to be taken, first column is value, next 8 are indices
+    ! within the pot, final is number of cards in combo
     integer,allocatable :: take_vals(:,:)
     ! counter for pot possibilities to be taken
     integer :: c
@@ -31,6 +32,8 @@ MODULE card_pot
 
     CONTAINS
       procedure,pass :: init => init_pot
+      procedure,pass :: add => add_pot
+      procedure,pass :: pull => pull_pot
       procedure,pass :: check => check_pot
       procedure,pass :: sum_me
   endtype pot_type  
@@ -42,7 +45,7 @@ MODULE card_pot
     SUBROUTINE init_pot(me,cards)
       class(pot_type),intent(inout) :: me
       ! number of cards in the pot
-      integer :: cards
+      integer,intent(in) :: cards
 
       me%n=cards
       allocate(me%p(me%n))
@@ -53,18 +56,74 @@ MODULE card_pot
 !-------------------------------------------------------------------------------
 
 !-------------------------------------------------------------------------------
+! add() adds a card to the pot
+!-------------------------------------------------------------------------------
+    SUBROUTINE add_pot(me,hand,i)
+      class(pot_type),intent(inout) :: me
+      class(hand_type),intent(in) :: hand
+      integer,intent(in) :: i
+      character(len=3),allocatable :: p(:)
+      integer,allocatable :: p_val(:) 
+ 
+      allocate(p(me%n))
+      allocate(p_val(me%n))
+      p=me%p
+      p_val=me%p_val
+      deallocate(me%p)
+      deallocate(me%p_id)
+      deallocate(me%p_val)
+      call me%init(me%n+1)
+      me%p(1:me%n-1)=p(1:me%n-1)
+      me%p_val(1:me%n-1)=p_val(1:me%n-1)
+      me%p(me%n)=hand%h(i)
+      me%p_val(me%n)=hand%h_val(i)
+
+    ENDSUBROUTINE add_pot
+!-------------------------------------------------------------------------------
+ 
+!-------------------------------------------------------------------------------
+! pull() pulls cards from the pot
+!-------------------------------------------------------------------------------
+    SUBROUTINE pull_pot(me,i)
+      class(pot_type),intent(inout) :: me
+      integer,intent(in) :: i
+      integer :: new_n,j,k,l
+      character(len=3),allocatable :: p(:)
+      integer,allocatable :: p_val(:) 
+ 
+      new_n=me%n-me%take_vals(i,10)
+      !!!! need something special to deal with a scopa (new_n=0)
+      allocate(p(new_n))
+      allocate(p_val(new_n))
+      k=2
+      l=1
+      do j=1,me%n
+        if(j/=me%take_vals(i,k)) then
+          p(l)=me%p(j)
+          p_val(l)=me%p_val(j)
+          l=l+1
+        else
+          k=k+1
+        endif
+      enddo
+      deallocate(me%p)
+      deallocate(me%p_id)
+      deallocate(me%p_val)
+      call me%init(new_n)
+      me%p=p
+      me%p_val=p_val
+
+    ENDSUBROUTINE pull_pot
+!-------------------------------------------------------------------------------
+ 
+!-------------------------------------------------------------------------------
 ! check() checks the pot to see what is available to be taken
 !-------------------------------------------------------------------------------
     SUBROUTINE check_pot(me)
       class(pot_type),intent(inout) :: me
       integer :: i,s
 
-      ! assign a temporary pot to debug with
-      deallocate(me%p_val)
-      me%n=5
-      allocate(me%p_val(me%n))
-      me%p_val=(/8,1,5,4,10/)
-       
+      if(allocated(me%take_vals)) deallocate(me%take_vals)
       me%c=0
       me%k=1
       me%tmp_vals=0
@@ -74,10 +133,10 @@ MODULE card_pot
         call sum_me(me,i,s)
       enddo
 
-print*, "Possible take combinations are:"
-      do i=1,me%c
-        print*, me%take_vals(i,:)
-      enddo
+!print*, "Possible take combinations are:"
+!      do i=1,me%c
+!        print*, me%take_vals(i,:)
+!      enddo
     ENDSUBROUTINE check_pot
 !-------------------------------------------------------------------------------
 
