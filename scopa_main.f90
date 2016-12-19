@@ -37,6 +37,12 @@ MODULE scopa_main
   type(hand_type),target :: chand
   ! pointer to the pot
   type(pot_type),target :: pot
+  ! bin to store taken cards in
+  character(len=3) :: bin(2,40)
+  ! bin to store value of take cards in
+  integer :: bin_val(2,40)
+  ! current bin indices
+  integer :: bi(2)=1
 
   CONTAINS
 !-------------------------------------------------------------------------------
@@ -77,6 +83,10 @@ MODULE scopa_main
           " than 2 players"
       endif
       call deck%deal(phand,chand,pot,spot,.true.)
+      print*, " player  hand is",phand%h(:)
+      print*, "computer hand is",chand%h(:)
+      print*, "    pot is:     ",pot%p(:)
+ 
     ENDSUBROUTINE deal_scopa
 !-------------------------------------------------------------------------------
 
@@ -93,13 +103,18 @@ MODULE scopa_main
         do j=1,3
           if(spot==1) then
             call play_player
+            call show
             call play_comp
+            call show
           else
             call play_comp
+            call show
             call play_player
+            call show
           endif
           cards_in_hand=cards_in_hand-1
         enddo
+        call deck%deal(phand,chand,pot,spot,.false.)
       enddo
     ENDSUBROUTINE play_scopa
 !-------------------------------------------------------------------------------
@@ -116,7 +131,7 @@ MODULE scopa_main
         print*, "Invalid entry"
         stop
       else
-        call play_card(phand%h_id(i),spot)
+        call apply_card(i,spot)
       endif
     ENDSUBROUTINE play_player
 !-------------------------------------------------------------------------------
@@ -127,19 +142,171 @@ MODULE scopa_main
     SUBROUTINE play_comp()
 
       print*, "The computer is playing",chand%h(1)
-      call play_card(chand%h_id(1),comp_spot)
+      call apply_card(1,comp_spot)
     ENDSUBROUTINE play_comp
 !-------------------------------------------------------------------------------
  
 !-------------------------------------------------------------------------------
-! play_card() applies the card played to the pot
+! apply_card() applies the card played to the pot
 !-------------------------------------------------------------------------------
-    SUBROUTINE play_card(card_id,bin)
-      integer,intent(in) :: card_id
-      integer,intent(in) :: bin
+    SUBROUTINE apply_card(i,b)
+      integer,intent(in) :: i
+      integer,intent(in) :: b
+      ! prety sure this should be a type, but maybe should be class??
+      type(hand_type),pointer :: hand
+      integer :: j,k,opt
+      ! first column is combo number (pot%take_vals row), second is # of cards
+      integer,allocatable :: pot_opts(:,:),tmp_opts(:,:)
+      ! number of single card options
+      integer :: nso
+      ! index of single card options
+      integer,allocatable :: sco(:),tmp(:)
 
+      ! assign hand pointer to computer or player
+      if(b==spot) then
+        hand=>phand
+      else
+        hand=>chand
+      endif
+      ! check the pot for possible values to take
       call pot%check
-    ENDSUBROUTINE play_card
+      k=0
+      ! cycle through the take_vals and add any matches to pot_opts
+      do j=1,pot%c
+        if(hand%h_val(i)==pot%take_vals(j,1)) then
+          k=k+1
+          if(allocated(pot_opts)) then
+            allocate(tmp_opts(k-1,2))
+            tmp_opts=pot_opts
+            deallocate(pot_opts)
+            allocate(pot_opts(k,2))
+            pot_opts=0
+            pot_opts(1:k-1,:)=tmp_opts(1:k-1,:)
+            deallocate(tmp_opts)
+          else
+            allocate(pot_opts(k,2))
+            pot_opts=0
+          endif
+          pot_opts(k,1)=j
+          pot_opts(k,2)=pot%take_vals(j,10)
+        endif
+      enddo
+      ! determine options if there is a match
+      if(k>0) then
+        ! only one option available to be taken
+        if(k==1) then
+          opt=1
+          do j=1,pot_opts(k,2)
+            bin(b,bi(b))=pot%p(pot%take_vals(pot_opts(k,1),j+1))
+            bin_val(b,bi(b))=pot%p_val(pot%take_vals(pot_opts(k,1),j+1))
+            bi(b)=bi(b)+1
+          enddo
+        ! multiple options available to be taken
+        else
+          nso=0
+          ! determine how many single card options are available
+          do j=1,k
+            if(pot_opts(j,2)==1) then
+              nso=nso+1
+              if(nso>1) then
+                allocate(tmp(nso-1))
+                tmp=sco
+                deallocate(sco)
+                allocate(sco(nso))
+                sco=0
+                sco(1:nso-1)=tmp(1:nso-1)
+                deallocate(tmp)
+              else
+                allocate(sco(nso))
+                sco=0
+              endif
+              sco(nso)=j
+            endif
+          enddo
+          ! one single card option must be taken
+          if(nso==1) then
+            opt=nso
+            bin(b,bi(b))=pot%p(pot%take_vals(pot_opts(sco(1),1),2))
+            bin_val(b,bi(b))=pot%p_val(pot%take_vals(pot_opts(sco(1),1),2))
+            bi(b)=bi(b)+1
+          ! option must be chosen
+          else
+            ! player chooses
+            if(b==spot) then
+              print*, "Select which combination you would like to take"
+              ! limit options to single cards if available
+              if(nso>1) then
+                do j=1,nso
+!!! need to have this print cards rather than indices
+                  print*, pot%take_vals(pot_opts(sco(j),1),2:1+pot_opts(sco(j),2))
+                enddo
+              ! no single card options exist, so player may choose any combo
+              else
+                do j=1,k
+                  print*, pot%take_vals(pot_opts(j,1),2:1+pot_opts(j,2))
+                enddo
+              endif
+              read(*,*) opt
+            ! computer chooses
+            else
+              ! keeping it simple for now
+              opt=1
+            endif
+            ! draw from limited set of options if single cards are available
+            if(nso>1) then
+              if(opt>0.and.opt<=nso) then
+                do j=1,pot_opts(opt,2)
+                  bin(b,bi(b))=pot%p(pot%take_vals(pot_opts(sco(opt),1),j+1))
+                  bin_val(b,bi(b))=pot%p_val(pot%take_vals(pot_opts(sco(opt),1),j+1))
+                  bi(b)=bi(b)+1     
+                enddo
+              else
+                print*, "Invalid option!"
+              endif
+            ! draw from full set of options
+            else
+              if(opt>0.and.opt<=k) then
+                do j=1,pot_opts(opt,2)
+                  bin(b,bi(b))=pot%p(pot%take_vals(pot_opts(opt,1),j+1))
+                  bin_val(b,bi(b))=pot%p_val(pot%take_vals(pot_opts(opt,1),j+1))
+                  bi(b)=bi(b)+1
+                enddo
+              else
+                print*, "Invalid option!"
+                stop
+              endif
+            endif
+          endif
+        endif
+        ! remove cards from pot
+        call pot%pull(pot_opts(opt,1))
+        ! add played card to pin
+        bin(b,bi(b))=hand%h(i)
+        bin_val(b,bi(b))=hand%h_val(i)
+        bi(b)=bi(b)+1
+      else
+        ! add card to pot
+        call pot%add(hand,i)
+      endif
+      ! remove card from hand
+      call hand%pull(i) 
+
+    ENDSUBROUTINE apply_card
+!-------------------------------------------------------------------------------
+
+!-------------------------------------------------------------------------------
+! show() - print relevant data to screen
+!-------------------------------------------------------------------------------
+    SUBROUTINE show()
+
+      print*, " player  hand is",phand%h(:)
+      print*, "computer hand is",chand%h(:)
+      print*, "    pot is:     ",pot%p(:)
+      print*, "bins are:"
+      print*, bin(1,1:10)
+      print*, bin(2,1:20) 
+
+    ENDSUBROUTINE show
 !-------------------------------------------------------------------------------
  
 ENDMODULE scopa_main

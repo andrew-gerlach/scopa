@@ -33,7 +33,7 @@ MODULE card_deck
     ! display value of cards
     character(len=3),allocatable :: deck(:)
     ! index of current top card in the deck
-    integer :: top_card=0
+    integer :: top_card=1
 
     CONTAINS
       procedure,pass :: init => init_deck
@@ -177,30 +177,36 @@ MODULE card_deck
       ! deal pot if first hand
       logical,intent(in) :: first_hand
       integer,save :: nhands, cards_hand, cards_up
-      integer :: i
+      integer :: i,j
 
       cards_hand=phand%n
       nhands=2
       do i=1,cards_hand
-        phand%h(i)=me%deck((i-1)*nhands+spot)
-        phand%h_id(i)=me%deck_id((i-1)*nhands+spot)
-        phand%h_val(i)=me%deck_val((i-1)*nhands+spot)
-        chand%h(i)=me%deck(i*nhands-spot+1)
-        chand%h_id(i)=me%deck_id(i*nhands-spot+1)
-        chand%h_val(i)=me%deck_val(i*nhands-spot+1)
+        do j=1,nhands
+          if(j==spot) then
+            phand%h(i)=me%deck(me%top_card)
+            phand%h_val(i)=me%deck_val(me%top_card)
+          else
+            chand%h(i)=me%deck(me%top_card)
+            chand%h_val(i)=me%deck_val(me%top_card)
+          endif
+          me%top_card=me%top_card+1
+        enddo
       enddo
-      me%top_card=nhands*cards_hand+1
+!      do i=1,cards_hand
+!        phand%h(i)=me%deck((i-1)*nhands+spot)
+!        phand%h_val(i)=me%deck_val((i-1)*nhands+spot)
+!        chand%h(i)=me%deck(i*nhands-spot+1)
+!        chand%h_val(i)=me%deck_val(i*nhands-spot+1)
+!      enddo
+!      me%top_card=nhands*cards_hand+1
       if(first_hand) then
         cards_up=size(pot%p)
         pot%p(1:cards_up)=me%deck(me%top_card:me%top_card+cards_up-1)
-        pot%p_id(1:cards_up)=me%deck_id(me%top_card:me%top_card+cards_up-1)
         pot%p_val(1:cards_up)=me%deck_val(me%top_card:me%top_card+cards_up-1)
         me%top_card=me%top_card+cards_up
       endif
-      print*, " player  hand is",phand%h(:)
-      print*, "computer hand is",chand%h(:)
-      print*, "pot is: ",pot%p(:)
-          
+         
     ENDSUBROUTINE deal_deck
 
 ENDMODULE card_deck
