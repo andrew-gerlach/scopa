@@ -7,6 +7,7 @@ MODULE scopa_main
   use card_deck
   use card_hand
   use card_pot
+  use card_bin
 
   implicit none
   private
@@ -36,16 +37,14 @@ MODULE scopa_main
   type(hand_type),target,save :: phand
   ! pointer to the computer's hand
   type(hand_type),target,save :: chand
+  ! pointer to the player's bin
+  type(bin_type),target :: pbin
+  ! pointer to the computer's bin
+  type(bin_type),target :: cbin
   ! pointer to the pot
   type(pot_type),target :: pot
   ! last player to take from pot
   integer :: last_take=0
-  ! bin to store taken cards in
-  character(len=3),allocatable :: bin(:,:)
-  ! bin to store value of take cards in
-  integer,allocatable :: bin_val(:,:)
-  ! current bin indices
-  integer,allocatable :: bi(:)
   ! score
   integer,save :: score(2)=0
 
@@ -66,6 +65,8 @@ MODULE scopa_main
       call deck%init(deck_kind)
       call phand%init(cards_hand)
       call chand%init(cards_hand)
+      call pbin%init(deck%ncards)
+      call cbin%init(deck%ncards)
       call pot%init(cards_up)
       call deck%shuffle()
       nplayers=real_players
@@ -86,12 +87,6 @@ MODULE scopa_main
         print*, "Modifications are required to establish the order for more",&
           " than 2 players"
       endif
-      allocate(bin(2,deck%ncards))
-      allocate(bin_val(2,deck%ncards))
-      allocate(bi(2))
-      bin='   '
-      bin_val=0
-      bi=1
  
     ENDSUBROUTINE setup
 !-------------------------------------------------------------------------------
@@ -118,11 +113,6 @@ MODULE scopa_main
         print*, "Modifications are required to establish the order for more",&
           " than 2 players"
       endif
-      allocate(bin(2,deck%ncards))
-      allocate(bin_val(2,deck%ncards))
-      bin='   '
-      bin_val=0
-      bi=1 
  
     ENDSUBROUTINE next_deal
 !-------------------------------------------------------------------------------
@@ -132,6 +122,7 @@ MODULE scopa_main
 !-------------------------------------------------------------------------------
     SUBROUTINE play_scopa(game_on)
       logical,intent(inout) :: game_on
+      type(bin_type),pointer :: bin
       integer :: i,j
 
       ! hand loop
@@ -160,10 +151,15 @@ MODULE scopa_main
       enddo
       ! pull remaining cards from the pot to whoever took last
       if(pot%n>0) then
+        if(last_take==spot) then
+          bin=>pbin
+        else
+          bin=>cbin
+        endif
         do i=1,pot%n
-          bin(last_take,bi(last_take))=pot%p(i)
-          bin_val(last_take,bi(last_take))=pot%p_val(i)
-          bi(last_take)=bi(last_take)+1 
+          bin%n=bin%n+1
+          bin%b(bin%n)=pot%p(i)
+          bin%b_val(bin%n)=pot%p_val(i)
         enddo
         pot%n=0
         deallocate(pot%p)
@@ -183,9 +179,9 @@ MODULE scopa_main
         game_on=.false.
       endif
 
-      ! cleanup
-      deallocate(bin)
-      deallocate(bin_val)
+      call pbin%clear
+      call cbin%clear
+
     ENDSUBROUTINE play_scopa
 !-------------------------------------------------------------------------------
 
@@ -227,10 +223,11 @@ MODULE scopa_main
     SUBROUTINE apply_card(i,b)
       ! index of card in hand
       integer,intent(in) :: i
-      ! bin position of player
+      ! position of player
       integer,intent(in) :: b
-      ! prety sure this should be a type, but maybe should be class??
+
       type(hand_type),pointer :: hand
+      type(bin_type),pointer :: bin
       integer :: j,k,opt
       ! first column is combo number (pot%take_vals row), second is # of cards
       integer,allocatable :: pot_opts(:,:),tmp_opts(:,:)
@@ -242,8 +239,10 @@ MODULE scopa_main
       ! assign hand pointer to computer or player
       if(b==spot) then
         hand=>phand
+        bin=>pbin
       else
         hand=>chand
+        bin=>cbin
       endif
       ! check the pot for possible values to take
       call pot%check
@@ -274,9 +273,9 @@ MODULE scopa_main
         if(k==1) then
           opt=1
           do j=1,pot_opts(k,2)
-            bin(b,bi(b))=pot%p(pot%take_vals(pot_opts(k,1),j+1))
-            bin_val(b,bi(b))=pot%p_val(pot%take_vals(pot_opts(k,1),j+1))
-            bi(b)=bi(b)+1
+            bin%n=bin%n+1
+            bin%b(bin%n)=pot%p(pot%take_vals(pot_opts(k,1),j+1))
+            bin%b_val(bin%n)=pot%p_val(pot%take_vals(pot_opts(k,1),j+1))
           enddo
         ! multiple options available to be taken
         else
@@ -303,9 +302,9 @@ MODULE scopa_main
           ! one single card option must be taken
           if(nso==1) then
             opt=sco(nso)
-            bin(b,bi(b))=pot%p(pot%take_vals(pot_opts(sco(1),1),2))
-            bin_val(b,bi(b))=pot%p_val(pot%take_vals(pot_opts(sco(1),1),2))
-            bi(b)=bi(b)+1
+            bin%n=bin%n+1
+            bin%b(bin%n)=pot%p(pot%take_vals(pot_opts(sco(1),1),2))
+            bin%b_val(bin%n)=pot%p_val(pot%take_vals(pot_opts(sco(1),1),2))
           ! option must be chosen
           else
             ! player chooses
@@ -333,9 +332,9 @@ MODULE scopa_main
             if(nso>1) then
               if(opt>0.and.opt<=nso) then
                 do j=1,pot_opts(opt,2)
-                  bin(b,bi(b))=pot%p(pot%take_vals(pot_opts(sco(opt),1),j+1))
-                  bin_val(b,bi(b))=pot%p_val(pot%take_vals(pot_opts(sco(opt),1),j+1))
-                  bi(b)=bi(b)+1     
+                  bin%n=bin%n+1
+                  bin%b(bin%n)=pot%p(pot%take_vals(pot_opts(sco(opt),1),j+1))
+                  bin%b_val(bin%n)=pot%p_val(pot%take_vals(pot_opts(sco(opt),1),j+1))
                 enddo
               else
                 print*, "Invalid option!"
@@ -344,9 +343,9 @@ MODULE scopa_main
             else
               if(opt>0.and.opt<=k) then
                 do j=1,pot_opts(opt,2)
-                  bin(b,bi(b))=pot%p(pot%take_vals(pot_opts(opt,1),j+1))
-                  bin_val(b,bi(b))=pot%p_val(pot%take_vals(pot_opts(opt,1),j+1))
-                  bi(b)=bi(b)+1
+                  bin%n=bin%n+1
+                  bin%b(bin%n)=pot%p(pot%take_vals(pot_opts(opt,1),j+1))
+                  bin%b_val(bin%n)=pot%p_val(pot%take_vals(pot_opts(opt,1),j+1))
                 enddo
               else
                 print*, "Invalid option!"
@@ -363,9 +362,9 @@ MODULE scopa_main
           score(b)=score(b)+1
         endif
         ! add played card to pin
-        bin(b,bi(b))=hand%h(i)
-        bin_val(b,bi(b))=hand%h_val(i)
-        bi(b)=bi(b)+1
+        bin%n=bin%n+1
+        bin%b(bin%n)=hand%h(i)
+        bin%b_val(bin%n)=hand%h_val(i)
         last_take=b
       else
         ! add card to pot
@@ -382,6 +381,7 @@ MODULE scopa_main
 !-------------------------------------------------------------------------------
 
     SUBROUTINE tally_score()
+      type(bin_type),pointer :: bin
       integer :: sb(ntot)
       integer :: coins(ntot)
       integer :: prem(ntot)
@@ -399,30 +399,34 @@ MODULE scopa_main
       prem=0
       cards=0
       suit_points=0
-      do i=1,ntot
+      do i=1,2
+        if(i==spot) then
+          bin=>pbin
+        else
+          bin=>cbin
+        endif
         k=1
-        do j=1,deck%ncards
-          if(bin_val(i,j)==0) then
+        do j=1,bin%nmax
+          if(bin%b_val(j)==0) then
             exit
           else
             cards(i)=cards(i)+1
-            tmp_ch=bin(i,j)(3:3)
+            tmp_ch=bin%b(j)(3:3)
             if(tmp_ch=='D') then
               coins(i)=coins(i)+1
-              tmp_ch=bin(i,j)(2:2)
-              if(tmp_ch=='7') then
+              if(bin%b_val(j)==7) then
                 sb(i)=sb(i)+1
               endif
-              suit_points(i,1,k(1))=point_value(bin_val(i,j))
+              suit_points(i,1,k(1))=point_value(bin%b_val(j))
               k(1)=k(1)+1
             elseif(tmp_ch=='H') then
-              suit_points(i,2,k(2))=point_value(bin_val(i,j))
+              suit_points(i,2,k(2))=point_value(bin%b_val(j))
               k(2)=k(2)+1
             elseif(tmp_ch=='C') then
-              suit_points(i,3,k(3))=point_value(bin_val(i,j))
+              suit_points(i,3,k(3))=point_value(bin%b_val(j))
               k(3)=k(3)+1
             elseif(tmp_ch=='S') then
-              suit_points(i,4,k(4))=point_value(bin_val(i,j))
+              suit_points(i,4,k(4))=point_value(bin%b_val(j))
               k(4)=k(4)+1
             else
               print*, "suit not recognized in tally_score!!!"
@@ -481,8 +485,8 @@ MODULE scopa_main
       endif
       print*, " "
       print*, "bins are:"
-      print*, bin(1,1:40)
-      print*, bin(2,1:40) 
+      print*, pbin%b(:)
+      print*, cbin%b(:) 
       print*, " "
 
     ENDSUBROUTINE show
