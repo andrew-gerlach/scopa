@@ -8,7 +8,17 @@ PROGRAM scopa
 
   implicit none
   
-  call deal_scopa()
-  call play_scopa()
+  logical :: first_deal=.true.
+  logical :: game_on=.true.
+  
+  do while(game_on)
+    if(first_deal) then
+      call setup()
+      first_deal=.false.
+    else
+      call next_deal()
+    endif
+    call play_scopa(game_on)
+  enddo
 
 ENDPROGRAM scopa

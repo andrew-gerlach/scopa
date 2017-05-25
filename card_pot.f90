@@ -49,7 +49,6 @@ MODULE card_pot
 
       me%n=cards
       allocate(me%p(me%n))
-      allocate(me%p_id(me%n))
       allocate(me%p_val(me%n))
 
     ENDSUBROUTINE init_pot
@@ -65,16 +64,19 @@ MODULE card_pot
       character(len=3),allocatable :: p(:)
       integer,allocatable :: p_val(:) 
  
-      allocate(p(me%n))
-      allocate(p_val(me%n))
-      p=me%p
-      p_val=me%p_val
-      deallocate(me%p)
-      deallocate(me%p_id)
-      deallocate(me%p_val)
-      call me%init(me%n+1)
-      me%p(1:me%n-1)=p(1:me%n-1)
-      me%p_val(1:me%n-1)=p_val(1:me%n-1)
+      if(me%n>0) then
+        allocate(p(me%n))
+        allocate(p_val(me%n))
+        p=me%p
+        p_val=me%p_val
+        deallocate(me%p)
+        deallocate(me%p_val)
+        call me%init(me%n+1)
+        me%p(1:me%n-1)=p(1:me%n-1)
+        me%p_val(1:me%n-1)=p_val(1:me%n-1)
+      else
+        call me%init(1)
+      endif
       me%p(me%n)=hand%h(i)
       me%p_val(me%n)=hand%h_val(i)
 
@@ -82,7 +84,7 @@ MODULE card_pot
 !-------------------------------------------------------------------------------
  
 !-------------------------------------------------------------------------------
-! pull() pulls cards from the pot
+! pull() pulls cards from the pot on a take
 !-------------------------------------------------------------------------------
     SUBROUTINE pull_pot(me,i)
       class(pot_type),intent(inout) :: me
@@ -92,26 +94,33 @@ MODULE card_pot
       integer,allocatable :: p_val(:) 
  
       new_n=me%n-me%take_vals(i,10)
-      !!!! need something special to deal with a scopa (new_n=0)
-      allocate(p(new_n))
-      allocate(p_val(new_n))
-      k=2
-      l=1
-      do j=1,me%n
-        if(j/=me%take_vals(i,k)) then
-          p(l)=me%p(j)
-          p_val(l)=me%p_val(j)
-          l=l+1
-        else
-          k=k+1
-        endif
-      enddo
-      deallocate(me%p)
-      deallocate(me%p_id)
-      deallocate(me%p_val)
-      call me%init(new_n)
-      me%p=p
-      me%p_val=p_val
+      if(new_n>0) then
+        allocate(p(new_n))
+        allocate(p_val(new_n))
+        k=2
+        l=1
+        do j=1,me%n
+          if(j/=me%take_vals(i,k)) then
+            p(l)=me%p(j)
+            p_val(l)=me%p_val(j)
+            l=l+1
+          else
+            k=k+1
+          endif
+        enddo
+        deallocate(me%p)
+        deallocate(me%p_val)
+        call me%init(new_n)
+        me%p=p
+        me%p_val=p_val
+      elseif(new_n<0) then
+        print*, "Number of cards in pot has somehow gone negative!"
+        stop
+      else
+        deallocate(me%p)
+        deallocate(me%p_val)
+        me%n=new_n
+      endif
 
     ENDSUBROUTINE pull_pot
 !-------------------------------------------------------------------------------
@@ -172,7 +181,7 @@ MODULE card_pot
         me%take_vals(me%c,1)=s
         me%take_vals(me%c,2:9)=me%tmp_vals
         me%take_vals(me%c,10)=me%k
-        ! iterate further is sum is less than 10 and not on last card
+        ! iterate further if sum is less than 10 and not on last card
         if(s<10.and.i<me%n) then
           ! increment number of cards in combo
           me%k=me%k+1

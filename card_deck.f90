@@ -12,14 +12,14 @@ MODULE card_deck
 
   public :: deck_type
 
-  ! number of suits in deck
-  integer,parameter :: nsuits=4
   ! max cards per suit
   integer,parameter :: nums_max=13
 
   type :: deck_type
     ! type of card deck [rah,ral,ita,euc]
     character(len=3) :: deck_kind='nul'
+    ! number of suits in deck
+    integer :: nsuits=4 
     ! number of cards in deck
     integer :: ncards=0
     ! number of numbers per suit (=ncards/nsuits)
@@ -59,7 +59,7 @@ MODULE card_deck
       ! display number of all possible cards
       character(len=2) :: numbers(nums_max)
       ! display suit
-      character(len=1) :: suits(nsuits)
+      character(len=1),allocatable :: suits(:)
       ! indexing and temporary storage
       integer :: i, j
       character(len=2) :: tmp_number
@@ -68,6 +68,7 @@ MODULE card_deck
 
       me%deck_kind=deck_in
       ! assign card names and suits
+      allocate(suits(me%nsuits))
       suits=(/"S","C","H","D"/)
       numbers=(/" A"," 2"," 3"," 4"," 5"," 6"," 7"," 8"," 9","10"," J"," Q"," K"/)
       ! assign used card numbers based on deck type
@@ -132,14 +133,10 @@ MODULE card_deck
       character(len=3),allocatable :: tmp_deck(:)
       logical,save :: first_shuffle=.true.
 
-      ! intialize deck and allocate arrays if first shuffle
-      if(first_shuffle) then
-        allocate(order(me%ncards))
-        allocate(tmp_deck(me%ncards))
-        allocate(tmp_deck_id(me%ncards))
-        allocate(tmp_deck_val(me%ncards))
-        first_shuffle=.false.
-      endif
+      allocate(order(me%ncards))
+      allocate(tmp_deck(me%ncards))
+      allocate(tmp_deck_id(me%ncards))
+      allocate(tmp_deck_val(me%ncards))
       ! shuffle deck and assign to temporary deck
       call random_number(order)
       do i=1,me%ncards
@@ -156,6 +153,11 @@ MODULE card_deck
       me%deck_id=tmp_deck_id
       me%deck_val=tmp_deck_val
       print*,me%deck
+      deallocate(order)
+      deallocate(tmp_deck)
+      deallocate(tmp_deck_id)
+      deallocate(tmp_deck_val)
+      me%top_card=1
 
     ENDSUBROUTINE shuffle_deck
 !-------------------------------------------------------------------------------

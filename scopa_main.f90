@@ -11,48 +11,52 @@ MODULE scopa_main
   implicit none
   private
 
-  public :: deal_scopa
+  public :: setup
+  public :: next_deal
   public :: play_scopa
 
   ! number of actual players
-  integer :: nplayers
+  integer,save :: nplayers
   ! number of computer players
-  integer :: ncomps
+  integer,save :: ncomps
   ! total number of players (hands)
-  integer :: ntot
+  integer,save :: ntot
   ! cards per hand
   integer :: cards_hand=3
   ! player spot in order
-  integer :: spot
+  integer,save :: spot
   ! computer spot in order
-  integer :: comp_spot
+  integer,save :: comp_spot
   ! number of cards left in the player's hand
   integer :: cards_in_hand
   ! pointer to the card deck (this needs to be a target, not a pointer so that
   ! it can be accessed by a pointer)
-  type(deck_type),target :: deck
+  type(deck_type),target,save :: deck
   ! pointer to the player's hand
-  type(hand_type),target :: phand
+  type(hand_type),target,save :: phand
   ! pointer to the computer's hand
-  type(hand_type),target :: chand
+  type(hand_type),target,save :: chand
   ! pointer to the pot
   type(pot_type),target :: pot
+  ! last player to take from pot
+  integer :: last_take=0
   ! bin to store taken cards in
-  character(len=3) :: bin(2,40)
+  character(len=3),allocatable :: bin(:,:)
   ! bin to store value of take cards in
-  integer :: bin_val(2,40)
+  integer,allocatable :: bin_val(:,:)
   ! current bin indices
-  integer :: bi(2)=1
+  integer,allocatable :: bi(:)
+  ! score
+  integer,save :: score(2)=0
 
   CONTAINS
 !-------------------------------------------------------------------------------
-! deal_scopa() shuffles the deck of cards, deals out the appropriate number of
-!   cards to each player, and turns up the appropriate number of cards
+! setup() initializes the game and shuffles the deck of cards
 !
 !   tot_players - number of players in the game (2,4)
 !   real_players - number of real people in the game (1-4)
 !-------------------------------------------------------------------------------
-    SUBROUTINE deal_scopa()
+    SUBROUTINE setup()
       integer,parameter :: tot_players=2
       integer,parameter :: real_players=1
       character(len=3),parameter :: deck_kind='ita'
@@ -68,8 +72,8 @@ MODULE scopa_main
       ntot=tot_players
       ncomps=ntot-nplayers
       call random_number(tmp)
-      if(tot_players==2) then
-        if(tmp<0.5) then
+      if(ntot==2) then
+        if(spot==2) then
           spot=1
           comp_spot=2
           print*, "Computer deals, you go first"
@@ -82,22 +86,62 @@ MODULE scopa_main
         print*, "Modifications are required to establish the order for more",&
           " than 2 players"
       endif
-      call deck%deal(phand,chand,pot,spot,.true.)
-      print*, " player  hand is",phand%h(:)
-      print*, "computer hand is",chand%h(:)
-      print*, "    pot is:     ",pot%p(:)
+      allocate(bin(2,deck%ncards))
+      allocate(bin_val(2,deck%ncards))
+      allocate(bi(2))
+      bin='   '
+      bin_val=0
+      bi=1
  
-    ENDSUBROUTINE deal_scopa
+    ENDSUBROUTINE setup
 !-------------------------------------------------------------------------------
 
+!-------------------------------------------------------------------------------
+! reset() shuffles the deck and sets up for next round of play
+!-------------------------------------------------------------------------------
+    SUBROUTINE next_deal()
+      integer,parameter :: cards_up=4
+
+      call pot%init(cards_up)
+      call deck%shuffle()
+      if(ntot==2) then
+        if(spot==2) then
+          spot=1
+          comp_spot=2
+          print*, "Computer deals, you go first"
+        else
+          spot=2
+          comp_spot=1
+          print*, "You deal, computer goes first"
+        endif
+      else
+        print*, "Modifications are required to establish the order for more",&
+          " than 2 players"
+      endif
+      allocate(bin(2,deck%ncards))
+      allocate(bin_val(2,deck%ncards))
+      bin='   '
+      bin_val=0
+      bi=1 
+ 
+    ENDSUBROUTINE next_deal
+!-------------------------------------------------------------------------------
+ 
 !-------------------------------------------------------------------------------
 ! play_scopa() drives the play of the game
 !-------------------------------------------------------------------------------
-    SUBROUTINE play_scopa()
+    SUBROUTINE play_scopa(game_on)
+      logical,intent(inout) :: game_on
       integer :: i,j
 
       ! hand loop
-      do i=1,5
+      do i=1,6
+        if(i>1) then
+          call deck%deal(phand,chand,pot,spot,.false.)
+        else
+          call deck%deal(phand,chand,pot,spot,.true.)
+        endif
+        call show
         cards_in_hand=3
         ! play loop
         do j=1,3
@@ -105,17 +149,43 @@ MODULE scopa_main
             call play_player
             call show
             call play_comp
-            call show
           else
             call play_comp
             call show
             call play_player
-            call show
           endif
+          call show
           cards_in_hand=cards_in_hand-1
         enddo
-        call deck%deal(phand,chand,pot,spot,.false.)
       enddo
+      ! pull remaining cards from the pot to whoever took last
+      if(pot%n>0) then
+        do i=1,pot%n
+          bin(last_take,bi(last_take))=pot%p(i)
+          bin_val(last_take,bi(last_take))=pot%p_val(i)
+          bi(last_take)=bi(last_take)+1 
+        enddo
+        pot%n=0
+        deallocate(pot%p)
+        deallocate(pot%p_val)
+      endif
+      call show
+      call tally_score
+      print*, "The score is:",score
+
+      ! check to see if game is over
+      if(score(spot)>10 .and. score(spot)>score(comp_spot)) then
+        print*, "Player wins!!!"
+        game_on=.false.
+      endif
+      if(score(comp_spot)>10 .and. score(comp_spot)>score(spot)) then
+        print*, "Computer wins!!!"
+        game_on=.false.
+      endif
+
+      ! cleanup
+      deallocate(bin)
+      deallocate(bin_val)
     ENDSUBROUTINE play_scopa
 !-------------------------------------------------------------------------------
 
@@ -123,16 +193,21 @@ MODULE scopa_main
 ! play_player() manages the player's turn
 !-------------------------------------------------------------------------------
     SUBROUTINE play_player()
-      integer :: i
+      integer :: i,j
+      logical :: card_played=.false.
 
       print*, "Which card would you like to play?"
       read(*,*) i
-      if(i<1.or.i>cards_in_hand) then
-        print*, "Invalid entry"
-        stop
-      else
-        call apply_card(i,spot)
-      endif
+      do j=1,3
+        if(i<1.or.i>cards_in_hand) then
+          print*, "Invalid entry"
+        else
+          call apply_card(i,spot)
+          card_played=.true.
+          exit
+        endif
+      enddo
+      if(.not.card_played) stop
     ENDSUBROUTINE play_player
 !-------------------------------------------------------------------------------
 
@@ -150,7 +225,9 @@ MODULE scopa_main
 ! apply_card() applies the card played to the pot
 !-------------------------------------------------------------------------------
     SUBROUTINE apply_card(i,b)
+      ! index of card in hand
       integer,intent(in) :: i
+      ! bin position of player
       integer,intent(in) :: b
       ! prety sure this should be a type, but maybe should be class??
       type(hand_type),pointer :: hand
@@ -225,7 +302,7 @@ MODULE scopa_main
           enddo
           ! one single card option must be taken
           if(nso==1) then
-            opt=nso
+            opt=sco(nso)
             bin(b,bi(b))=pot%p(pot%take_vals(pot_opts(sco(1),1),2))
             bin_val(b,bi(b))=pot%p_val(pot%take_vals(pot_opts(sco(1),1),2))
             bi(b)=bi(b)+1
@@ -280,10 +357,16 @@ MODULE scopa_main
         endif
         ! remove cards from pot
         call pot%pull(pot_opts(opt,1))
+        ! check for scopa
+        if(pot%n==0) then
+          print*, "SCOPA!!!"
+          score(b)=score(b)+1
+        endif
         ! add played card to pin
         bin(b,bi(b))=hand%h(i)
         bin_val(b,bi(b))=hand%h_val(i)
         bi(b)=bi(b)+1
+        last_take=b
       else
         ! add card to pot
         call pot%add(hand,i)
@@ -295,16 +378,112 @@ MODULE scopa_main
 !-------------------------------------------------------------------------------
 
 !-------------------------------------------------------------------------------
+! tally_score() - checks players bins to determine score for the hand
+!-------------------------------------------------------------------------------
+
+    SUBROUTINE tally_score()
+      integer :: sb(ntot)
+      integer :: coins(ntot)
+      integer :: prem(ntot)
+      integer :: cards(ntot)
+      integer :: i,j,k(4)
+      character(len=1) :: tmp_ch
+      ! point value for card in each suit
+      integer,allocatable :: suit_points(:,:,:)
+      ! point value conversion, first row is card value, second is point value
+      integer :: point_value(0:10)=(/0,16,12,13,14,15,18,21,10,10,10/)
+
+      allocate(suit_points(ntot,deck%nsuits,deck%nnums))
+      sb=0
+      coins=0
+      prem=0
+      cards=0
+      suit_points=0
+      do i=1,ntot
+        k=1
+        do j=1,deck%ncards
+          if(bin_val(i,j)==0) then
+            exit
+          else
+            cards(i)=cards(i)+1
+            tmp_ch=bin(i,j)(3:3)
+            if(tmp_ch=='D') then
+              coins(i)=coins(i)+1
+              tmp_ch=bin(i,j)(2:2)
+              if(tmp_ch=='7') then
+                sb(i)=sb(i)+1
+              endif
+              suit_points(i,1,k(1))=point_value(bin_val(i,j))
+              k(1)=k(1)+1
+            elseif(tmp_ch=='H') then
+              suit_points(i,2,k(2))=point_value(bin_val(i,j))
+              k(2)=k(2)+1
+            elseif(tmp_ch=='C') then
+              suit_points(i,3,k(3))=point_value(bin_val(i,j))
+              k(3)=k(3)+1
+            elseif(tmp_ch=='S') then
+              suit_points(i,4,k(4))=point_value(bin_val(i,j))
+              k(4)=k(4)+1
+            else
+              print*, "suit not recognized in tally_score!!!"
+            endif
+          endif
+        enddo
+        do j=1,4
+          prem(i)=prem(i)+maxval(suit_points(i,j,:)) 
+        enddo
+      enddo
+      print*, "Scoring Summary"
+      if(spot==1) then
+        print*, "                    you        comp"
+      else
+        print*, "                       comp        you"
+      endif
+      print*, "----------------------------------------"
+      print*, "siete bella: ",sb
+      print*, "   coins   : ",coins
+      print*, "   cards   : ",cards
+      print*, "  premier  : ",prem
+      print*, " "
+      score=score+sb
+      if(coins(1)>coins(2)) then
+        score(1)=score(1)+1
+      elseif(coins(2)>coins(1)) then
+        score(2)=score(2)+1
+      endif
+      if(cards(1)>cards(2)) then
+        score(1)=score(1)+1
+      elseif(cards(2)>cards(1)) then
+        score(2)=score(2)+1
+      endif
+      if(prem(1)>prem(2)) then
+        score(1)=score(1)+1
+      elseif(prem(2)>prem(1)) then
+        score(2)=score(2)+1
+      endif
+
+    ENDSUBROUTINE tally_score
+!-------------------------------------------------------------------------------
+
+!-------------------------------------------------------------------------------
 ! show() - print relevant data to screen
 !-------------------------------------------------------------------------------
     SUBROUTINE show()
 
+      print*, " "
       print*, " player  hand is",phand%h(:)
       print*, "computer hand is",chand%h(:)
-      print*, "    pot is:     ",pot%p(:)
+      print*, " "
+      if(allocated(pot%p)) then
+        print*, "    pot is:     ",pot%p(:)
+      else
+        print*, "    pot is:     "
+      endif
+      print*, " "
       print*, "bins are:"
-      print*, bin(1,1:10)
-      print*, bin(2,1:20) 
+      print*, bin(1,1:40)
+      print*, bin(2,1:40) 
+      print*, " "
 
     ENDSUBROUTINE show
 !-------------------------------------------------------------------------------

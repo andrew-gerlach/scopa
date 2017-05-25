@@ -1,4 +1,4 @@
-rm card_hand.o card_pot.o card_deck.o scopa_main.o card_hand.mod card_pot.mod card_deck.mod scopa_main.mod scopa.exe
+rm *.o *.mod *.exe
 gfortran -c card_hand.f90
 gfortran -c card_pot.f90
 gfortran -c card_deck.f90
