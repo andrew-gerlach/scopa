@@ -115,6 +115,7 @@ MODULE scopa_main
       endif
 
     ENDSUBROUTINE next_deal
+
 !-------------------------------------------------------------------------------
 
 !-------------------------------------------------------------------------------
@@ -140,14 +141,17 @@ MODULE scopa_main
             call play_player
             call show
             call play_comp
+            call show
           else
             call play_comp
             call show
             call play_player
+            call show
           endif
           call show
           cards_in_hand=cards_in_hand-1
         enddo
+        call deck%deal(phand,chand,pot,spot,.false.)
       enddo
       ! pull remaining cards from the pot to whoever took last
       if(pot%n>0) then
@@ -202,6 +206,7 @@ MODULE scopa_main
         endif
       enddo
       if(.not.card_played) stop
+
     ENDSUBROUTINE play_player
 !-------------------------------------------------------------------------------
 
@@ -273,6 +278,7 @@ print*, " "
       ! flag for an actual play (true) or testing comp hand (false)
       logical,intent(in) :: foreal
 
+
       integer :: j,k,opt
       ! first column is combo number (pot%take_vals row), second is # of cards
       integer,allocatable :: pot_opts(:,:),tmp_opts(:,:)
@@ -316,6 +322,7 @@ print*, "*** checkpoint 1"
             bin%b_val(bin%n)=pot%p_val(pot%take_vals(pot_opts(k,1),j+1))
           enddo
 print*, "*** checkpoint 2"
+
         ! multiple options available to be taken
         else
           nso=0
@@ -514,6 +521,8 @@ print*, "*** checkpoint 3"
 !-------------------------------------------------------------------------------
 ! calc_value() - calculates expected value from a take
 !    the expected values are PRIME for machine learning
+!-------------------------------------------------------------------------------
+
 !-------------------------------------------------------------------------------
     SUBROUTINE calc_value(val,pot,bin)
       real,intent(inout) :: val

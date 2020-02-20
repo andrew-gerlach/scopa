@@ -22,7 +22,7 @@ MODULE card_hand
       procedure,pass :: init => init_hand
       procedure,pass :: pull => pull_hand
       procedure,pass :: clear => clear_hand
-  endtype hand_type  
+  endtype hand_type
 
   CONTAINS
 !-------------------------------------------------------------------------------
@@ -82,5 +82,5 @@ MODULE card_hand
 
     ENDSUBROUTINE clear_hand
 !-------------------------------------------------------------------------------
- 
+
 ENDMODULE card_hand

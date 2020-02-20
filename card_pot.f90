@@ -35,7 +35,7 @@ MODULE card_pot
       procedure,pass :: check => check_pot
       procedure,pass :: clear => clear_pot
       procedure,pass :: sum_me
-  endtype pot_type  
+  endtype pot_type
 
   CONTAINS
 !-------------------------------------------------------------------------------
@@ -63,8 +63,8 @@ MODULE card_pot
       class(hand_type),intent(in) :: hand
       integer,intent(in) :: i
       character(len=3),allocatable :: p(:)
-      integer,allocatable :: p_val(:) 
- 
+      integer,allocatable :: p_val(:)
+
       if(me%n>0) then
         allocate(p(me%n))
         allocate(p_val(me%n))
@@ -83,7 +83,7 @@ MODULE card_pot
 
     ENDSUBROUTINE add_pot
 !-------------------------------------------------------------------------------
- 
+
 !-------------------------------------------------------------------------------
 ! pull() pulls cards from the pot on a take
 !-------------------------------------------------------------------------------
@@ -92,8 +92,8 @@ MODULE card_pot
       integer,intent(in) :: i
       integer :: new_n,j,k,l
       character(len=3),allocatable :: p(:)
-      integer,allocatable :: p_val(:) 
- 
+      integer,allocatable :: p_val(:)
+
       new_n=me%n-me%take_vals(i,10)
       if(new_n>0) then
         allocate(p(new_n))
@@ -125,7 +125,7 @@ MODULE card_pot
 
     ENDSUBROUTINE pull_pot
 !-------------------------------------------------------------------------------
- 
+
 !-------------------------------------------------------------------------------
 ! check() checks the pot to see what is available to be taken
 !-------------------------------------------------------------------------------
@@ -151,7 +151,7 @@ MODULE card_pot
 !-------------------------------------------------------------------------------
 
 !-------------------------------------------------------------------------------
-! 
+!
 !-------------------------------------------------------------------------------
     RECURSIVE SUBROUTINE sum_me(me,i,s)
       class(pot_type),intent(inout) :: me
@@ -159,7 +159,7 @@ MODULE card_pot
       integer, intent(inout) :: s
       integer :: j
       integer,allocatable :: tmp_take_vals(:,:)
-      
+
       ! add new card to sum
       s=s+me%p_val(i)
       ! check to see if sum is takeable (10 or less)
@@ -219,5 +219,5 @@ MODULE card_pot
 
     ENDSUBROUTINE clear_pot
 !-------------------------------------------------------------------------------
- 
+
 ENDMODULE card_pot
