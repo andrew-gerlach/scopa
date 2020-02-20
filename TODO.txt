@@ -1,0 +1,15 @@
+
+for first hand play
+sequence: 3 1 1 - 2 1 1 - 1 2 1 - 3 1 1 - 1 2 1 - 1 1 1
+for second hand play
+sequence: 1 1 produces seg fault!
+  between checkpoint 1 and 2 in scopa_main.f90
+
+move debug edits and showing of opponent hand to special debug mode
+  ask for player name and use 'debugger' as flag
+
+improve front end, preferrably with a GUI
+
+apply machine learning to create a more intelligent computer play
+
+

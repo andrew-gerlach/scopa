@@ -15,14 +15,13 @@ MODULE card_hand
     integer :: n=0
     ! hand of cards
     character(len=3),allocatable :: h(:)
-    ! hand IDs
-    integer,allocatable :: h_id(:)
     ! hand values
     integer,allocatable :: h_val(:)
 
     CONTAINS
       procedure,pass :: init => init_hand
       procedure,pass :: pull => pull_hand
+      procedure,pass :: clear => clear_hand
   endtype hand_type  
 
   CONTAINS
@@ -36,8 +35,9 @@ MODULE card_hand
 
       me%n=cards
       allocate(me%h(me%n))
-      allocate(me%h_id(me%n))
       allocate(me%h_val(me%n))
+      me%h='   '
+      me%h_val=0
 
     ENDSUBROUTINE init_hand
 !-------------------------------------------------------------------------------
@@ -68,6 +68,19 @@ MODULE card_hand
       me%h_val(3)=0
 
     ENDSUBROUTINE pull_hand
+!-------------------------------------------------------------------------------
+
+!-------------------------------------------------------------------------------
+! clear() clears the hand
+!-------------------------------------------------------------------------------
+    SUBROUTINE clear_hand(me)
+      class(hand_type),intent(inout) :: me
+
+      me%n=0
+      deallocate(me%h)
+      deallocate(me%h_val)
+
+    ENDSUBROUTINE clear_hand
 !-------------------------------------------------------------------------------
  
 ENDMODULE card_hand

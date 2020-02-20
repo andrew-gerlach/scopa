@@ -16,8 +16,6 @@ MODULE card_pot
     integer :: n=0
     ! pot of cards
     character(len=3),allocatable :: p(:)
-    ! pot IDs
-    integer,allocatable :: p_id(:)
     ! pot values
     integer,allocatable :: p_val(:)
     ! pot possibilities to be taken, first column is value, next 8 are indices
@@ -35,6 +33,7 @@ MODULE card_pot
       procedure,pass :: add => add_pot
       procedure,pass :: pull => pull_pot
       procedure,pass :: check => check_pot
+      procedure,pass :: clear => clear_pot
       procedure,pass :: sum_me
   endtype pot_type  
 
@@ -50,6 +49,8 @@ MODULE card_pot
       me%n=cards
       allocate(me%p(me%n))
       allocate(me%p_val(me%n))
+      me%p='   '
+      me%p_val=0
 
     ENDSUBROUTINE init_pot
 !-------------------------------------------------------------------------------
@@ -206,4 +207,17 @@ MODULE card_pot
     ENDSUBROUTINE sum_me
 !-------------------------------------------------------------------------------
 
+!-------------------------------------------------------------------------------
+! clear() clears the pot
+!-------------------------------------------------------------------------------
+    SUBROUTINE clear_pot(me)
+      class(pot_type),intent(inout) :: me
+
+      me%n=0
+      if(allocated(me%p)) deallocate(me%p)
+      if(allocated(me%p_val)) deallocate(me%p_val)
+
+    ENDSUBROUTINE clear_pot
+!-------------------------------------------------------------------------------
+ 
 ENDMODULE card_pot
